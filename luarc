@@ -1,0 +1,33 @@
+dt = require "darktable"
+table = require "table"
+os = require "os"
+
+dt.print("Szevasz!!")
+
+local function parse_datetime(d)
+   local year
+   year = string.sub(d, 1, 4)
+   month = string.sub(d, 6, 7)
+   day = string.sub(d, 9, 10)
+   hour = string.sub(d, 12, 13)
+   min = string.sub(d, 15, 16)
+   sec = string.sub(d, 18, 19)
+   return os.time{year=year, month=month, day=day, hour=hour, min=min, sec=sec} 
+end
+
+local function callback()
+   local selection = {}
+   local kezdet, veg
+   for _,image in ipairs(dt.database) do
+      if image.red then
+         table.insert(selection,image)
+      end
+      dt.print_error(image.exif_datetime_taken)
+      kezdet = parse_datetime(image.exif_datetime_taken)
+      veg = kezdet + image.exif_exposure
+      dt.print_error(kezdet.."-"..veg)
+   end
+   dt.gui.selection(selection)
+end
+
+dt.register_event("shortcut",callback,"select all red images")
