@@ -15,19 +15,47 @@ local function parse_datetime(d)
    return os.time{year=year, month=month, day=day, hour=hour, min=min, sec=sec} 
 end
 
-local function callback()
-   local selection = {}
-   local kezdet, veg
-   for _,image in ipairs(dt.database) do
-      if image.red then
-         table.insert(selection,image)
-      end
-      dt.print_error(image.exif_datetime_taken)
-      kezdet = parse_datetime(image.exif_datetime_taken)
-      veg = kezdet + image.exif_exposure
-      dt.print_error(kezdet.."-"..veg)
-   end
-   dt.gui.selection(selection)
+local function get_time_pair(image)
+  kezdo = parse_datetime(image.exif_datetime_taken)
+  veg = kezdo + image.exif_exposure
+  return kezdo, veg
 end
 
+
+local function timediff_checker(img1, img2, maxdiff)
+  img1_beg, img1_end = get_time_pair(img1)
+  img2_beg, img2_end = get_time_pair(img2)
+  if (img2_beg-img1_end) < maxdiff
+    return true
+  return false
+
 dt.register_event("shortcut",callback,"select all red images")
+
+
+-- HDR processing starts here
+
+local function group_images(img_list)
+
+  elso_kep = img_list[1]
+  for _, image in pairs(img_list) do
+    dt.print_error(image.filename)
+    image.group_with(image,elso_kep)
+  end
+  elso_kep.make_group_leader(elso_kep)
+end
+
+local function work_with_selection_callback()
+  local img_list = dt.action_images
+  local hdr_list
+
+  elozo_kep = img_list[1]
+  for _, image in pairs(img_list) do
+    if within_timediff(elozo_kep, image)
+      hdr_list.append(image)
+    else
+      if len(hdr_list)>1
+        group_images(hdr_list)
+      else
+        clear_hdr_list
+
+dt.register_event("shortcut",work_with_selection_callback,"selection test")
