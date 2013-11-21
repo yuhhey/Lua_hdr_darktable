@@ -26,6 +26,7 @@ local function within_timediff(img1, img2, maxdiff)
   img1_beg, img1_end = get_time_pair(img1)
   img2_beg, img2_end = get_time_pair(img2)
   if (img2_beg-img1_end) < maxdiff then
+    dt.print_error("max diffen belul")
     return true
   end
   return false
@@ -67,21 +68,26 @@ end
 
 -- This function assumes that the images are ordered by exif time
 local function work_with_selection_callback()
+  dt.print_error("Indulunk")
   local img_list
   local hdr_list = {}
-
+  local n_imgs = 0
   img_list = dt.gui.selection()
-
+  dt.print_error("Béla")
   elozo_kep = img_list[1]
   for _, image in pairs(img_list) do
     if within_timediff(elozo_kep, image, 7) then
-      hdr_list[image.filename] = image
+      n_imgs = n_imgs + 1
+      hdr_list[n_imgs] = image
     else
-      if #hdr_list > 1 then
+      dt.print_error(#hdr_list)
+      dt.print_error(#hdr_list)
+      if n_imgs > 1 then
         group_images(hdr_list)
       end
       hdr_list = {}
-      hdr_list[elozo_kep.filename] = image
+      n_imgs = 1
+      hdr_list[n_imgs] = image
     end
     elozo_kep = image
   end
