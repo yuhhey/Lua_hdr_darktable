@@ -22,15 +22,36 @@ local function get_time_pair(image)
 end
 
 
-local function timediff_checker(img1, img2, maxdiff)
+local function within_timediff(img1, img2, maxdiff)
   img1_beg, img1_end = get_time_pair(img1)
   img2_beg, img2_end = get_time_pair(img2)
-  if (img2_beg-img1_end) < maxdiff
+  if (img2_beg-img1_end) < maxdiff then
     return true
+  end
   return false
+end
 
-dt.register_event("shortcut",callback,"select all red images")
-
+--[[
+AEBChecker = {}
+    def __init__(self):
+        self.reset()
+            
+    def reset(self):
+        self.ebvs = list()
+       
+    def __call__(self, comp_img, s_img):
+        
+        if 2 != s_img['Exif.Photo.ExposureMode']:
+            return false
+        ebv = s_img['Exif.Photo.ExposureBiasValue']
+        if len(self.ebvs) != 0:
+            #ebv = comp_img[key][Sequence.METADATA]['Exif.Photo.ExposureBiasValue'].value
+            if ebv in self.ebvs:
+                return false
+        
+        self.ebvs.append(ebv)
+        return true
+--]]
 
 -- HDR processing starts here
 
@@ -44,18 +65,26 @@ local function group_images(img_list)
   elso_kep.make_group_leader(elso_kep)
 end
 
+-- This function assumes that the images are ordered by exif time
 local function work_with_selection_callback()
-  local img_list = dt.action_images
-  local hdr_list
+  local img_list
+  local hdr_list = {}
+
+  img_list = dt.gui.selection()
 
   elozo_kep = img_list[1]
   for _, image in pairs(img_list) do
-    if within_timediff(elozo_kep, image)
-      hdr_list.append(image)
+    if within_timediff(elozo_kep, image, 7) then
+      hdr_list[image.filename] = image
     else
-      if len(hdr_list)>1
+      if #hdr_list > 1 then
         group_images(hdr_list)
-      else
-        clear_hdr_list
+      end
+      hdr_list = {}
+      hdr_list[elozo_kep.filename] = image
+    end
+    elozo_kep = image
+  end
+end
 
 dt.register_event("shortcut",work_with_selection_callback,"selection test")
