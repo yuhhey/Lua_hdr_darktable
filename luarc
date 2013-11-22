@@ -26,7 +26,6 @@ local function within_timediff(img1, img2, maxdiff)
   img1_beg, img1_end = get_time_pair(img1)
   img2_beg, img2_end = get_time_pair(img2)
   if (img2_beg-img1_end) < maxdiff then
-    dt.print_error("max diffen belul")
     return true
   end
   return false
@@ -60,28 +59,24 @@ local function group_images(img_list)
 
   elso_kep = img_list[1]
   for _, image in pairs(img_list) do
-    dt.print_error(image.filename)
     image.group_with(image,elso_kep)
   end
   elso_kep.make_group_leader(elso_kep)
 end
 
 -- This function assumes that the images are ordered by exif time
-local function work_with_selection_callback()
+local function group_sequences_in_selection_callback()
   dt.print_error("Indulunk")
   local img_list
   local hdr_list = {}
   local n_imgs = 0
   img_list = dt.gui.selection()
-  dt.print_error("Béla")
   elozo_kep = img_list[1]
   for _, image in pairs(img_list) do
     if within_timediff(elozo_kep, image, 7) then
       n_imgs = n_imgs + 1
       hdr_list[n_imgs] = image
     else
-      dt.print_error(#hdr_list)
-      dt.print_error(#hdr_list)
       if n_imgs > 1 then
         group_images(hdr_list)
       end
@@ -93,4 +88,44 @@ local function work_with_selection_callback()
   end
 end
 
-dt.register_event("shortcut",work_with_selection_callback,"selection test")
+dt.register_event("shortcut",group_sequences_in_selection_callback,"selection test")
+
+
+-- image is the leader of a group
+local function generateHDR(image)
+  local imgs
+  
+  imgs = image.get_group_members(image)
+  
+  local tmp_prefix = image.path.."/".."dt_hdr_tmp"
+  local pto_file, fn
+  fn = image.filename
+  pto_file = fn.sub(1, string.find(fn, '.')).."pto"
+  
+  -- Build align_image_stack command
+  align_image_stack_cmd = "align_image_stack -a "..tmp_prefix.." -p "..pto_file
+  for i, img in pairs(imgs) do
+    align_image_stack_cmd = align_image_stack_cmd.." "..img.path.."/"..img.filename
+  end
+  dt.print_error(align_image_stack_cmd)
+  os.execute(align_image_stack_cmd)
+
+end
+ 
+local function generate_hdr_from_group_callback()
+  local group_list
+
+  group_list = dt.gui.selection()
+
+  for i, image in pairs(group_list) do
+    if image.is_raw then
+      if image == image.group_leader then
+        generateHDR(image)
+      end
+    else
+      dt.print_error(image.filename.." is raw. Skipping...")
+    end
+  end
+end
+
+dt.register_event("shortcut", generate_hdr_from_group_callback, "Generate HDR of selected groups")
