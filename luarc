@@ -100,15 +100,32 @@ local function generateHDR(image)
   local tmp_prefix = image.path.."/".."dt_hdr_tmp"
   local pto_file, fn
   fn = image.filename
-  pto_file = fn.sub(1, string.find(fn, '.')).."pto"
+  pto_file = fn.sub(fn, 1, string.find(fn, '.')).."pto"
   
   -- Build align_image_stack command
   align_image_stack_cmd = "align_image_stack -a "..tmp_prefix.." -p "..pto_file
-  for i, img in pairs(imgs) do
-    align_image_stack_cmd = align_image_stack_cmd.." "..img.path.."/"..img.filename
+  for i, img in ipairs(imgs) do
+      align_image_stack_cmd = align_image_stack_cmd.." "..img.path.."/"..img.filename
   end
   dt.print_error(align_image_stack_cmd)
-  os.execute(align_image_stack_cmd)
+--  os.execute(align_image_stack_cmd)
+
+  -- Create the final image with enfuse
+  hdr_img_path = image.path..'/hdr.tif'
+  enfuse_cmd = "enfuse -o "..hdr_img_path..' '..tmp_prefix..'*'
+  dt.print_error(enfuse_cmd)
+--  os.execute(enfuse_cmd)
+
+-- Finally we delete the temporary files
+  rm_cmd = "rm "..tmp_prefix..'*'
+  dt.print_error(rm_cmd)
+  os.execute(rm_cmd)
+
+-- Import the HDR, add to the selection and set it as the group leader
+  imported_img = dt.database.import(hdr_img_path)
+  dt.print_error(imported_img.filename)
+  image.group_with(imported_img, image)
+  image.make_group_leader(imported_img)
 
 end
  
