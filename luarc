@@ -146,3 +146,6 @@ local function generate_hdr_from_group_callback()
 end
 
 dt.register_event("shortcut", generate_hdr_from_group_callback, "Generate HDR of selected groups")
+
+dt.preferences.register("generateHDR", "hdr_prefix", "string", "HDR prefix", "Prefix of HDR images generated from groups", "hdr_")
+dt.preferences.register("group_sequences_in_selection", "max_diff", "integer", "Max difference in image sequences", "Max time difference to consider subsequent images as part of the same sequence ", 7, 1,100)
