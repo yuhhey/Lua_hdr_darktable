@@ -90,6 +90,13 @@ end
 
 dt.register_event("shortcut",group_sequences_in_selection_callback,"selection test")
 
+local function add_HDR_to_group(image, hdr_fn)
+
+  imported_img = dt.database.import(hdr_fn)
+  print(hdr_fn, imported_img.filename)
+  image.group_with(imported_img, image)
+  image.make_group_leader(imported_img)
+end
 
 local function HDR_from_group(image)
   local imgs
@@ -116,13 +123,15 @@ local function HDR_from_image_table(img_table, target_path)
 end  
 
 -- fn_list: full path filenames
+-- target_path: full path of the generated image
 local function generateHDR(fn_list, target_path)
   
   local tmp_path = '/tmp'
-  local tmp_prefix = tmp_path.."/".."dt_hdr_t.mp"
+  local tmp_prefix = tmp_path.."/".."dt_hdr_tmp"
   local pto_file, fn
 
   fn = fn_list[1]
+  print(fn)
   pto_file = fn.sub(fn, 1, string.find(fn, '.', 1, true)).."pto"
   
   -- Build align_image_stack command
@@ -137,17 +146,16 @@ local function generateHDR(fn_list, target_path)
   dot_helye = string.find(fn, '.', 1, true)
   dt.print_error(dot_helye..fn)
   output_fn = fn.sub(fn, dot_helye-4, dot_helye-1)
-  hdr_img_path = target_path..'/'..output_fn..'_hdr.tif'
-  enfuse_cmd = "enfuse -o "..hdr_img_path..' '..tmp_prefix..'*'
+  enfuse_cmd = "enfuse -o "..target_path..' '..tmp_prefix..'*'
   dt.print_error(enfuse_cmd)
   os.execute(enfuse_cmd)
 
 -- Finally we delete the temporary files
   rm_cmd = "rm "..tmp_prefix..'*'
   dt.print_error(rm_cmd)
---  os.execute(rm_cmd)
+  os.execute(rm_cmd)
 
-  return hdr_image_path
+  return target_path
 end
 
 local function generate_hdr_from_table(img_table)
@@ -155,6 +163,7 @@ local function generate_hdr_from_table(img_table)
   for i, image in pairs(img_table) do
     if image.is_raw then
       if image == image.group_leader then
+-- TODO: a target path-t még meg kell csinálni.
         generateHDR(image)
       end
     else
@@ -176,21 +185,51 @@ dt.preferences.register("generateHDR", "hdr_prefix", "string", "HDR prefix", "Pr
 dt.preferences.register("group_sequences_in_selection", "max_diff", "integer", "Max difference in image sequences", "Max time difference to consider subsequent images as part of the same sequence ", 7, 1,100)
 
 
-local function export_proba(storage, img_table)
-  dt.print_error("Export finished, postprocessing starts.")
-  for i, v in pairs(img_table) do
-    dt.print_error(tostring(i)..": "..v..', '..i.filename..", "..tostring(i.group_leader))
+local function lookup_the_right_image_object(img, exported_images)
+  local image, fn
+
+  for image, fn in pairs(exported_images) do
+    if img == image then
+      return image
+    end
   end
-  dt.print_error("Ennyi volt!")
+  return nil
 end
 
-local function export_hdr(storage, img_list)
-  local img_table = {}
+function export_hdr(storage, exported_img_list)
+  local exported_fn_table = {}
 
-  for img, tmp_fn in img_list do
-    dt.print_errro(tmp_fn)
+  dt.print_error("Export finished, postprocessing starts.")
+ 
+  for image, tmp_fn in pairs(exported_img_list) do
+    if image.is_raw then
+      if image == image.group_leader then
+        imgs = image.get_group_members(image)
+        local n_fns = 0
+	for i, img in ipairs(imgs) do
+          good_img = lookup_the_right_image_object(img, exported_img_list)
+	  exported_fn_table[i] = exported_img_list[good_img]
+          dt.print_error(i..tostring(img)..','..exported_fn_table[i])
+          n_fns = n_fns +1
+        end
+	dt.print_error(tostring(exported_fn_table))
+        if n_fns > 1 then 
+          hdr_fajl = generateHDR(exported_fn_table, image.path.."/HDR_"..image.filename..'.tif')
+          if hdr_fajl then
+            print("Uj leader: ", hdr_fajl)
+            add_HDR_to_group(image, hdr_fajl)
+          end 
+        end
+      else
+        print("Nem leader:", image.filename)
+      end
+    else
+      dt.print_error(image.filename.." is not raw. Skipping...")
+    end
   end
+
+  dt.print_error("Ennyi volt!")
+
 end 
 
-
-dt.register_storage("proba", "proba callback", nil, export_proba)
+dt.register_storage("proba", "proba callback", nil, export_hdr)
