@@ -1,13 +1,13 @@
 dt = require "darktable"
 hdr_gen = require "hdr_gen"
-auto_group = require "auto_group"
+ag = require "auto_group"
 
 -- table = require "table"
 
 dt.print("Szevasz!!")
 
 
-dt.register_event("shortcut",auto_group.group_sequences_in_selection_callback,"selection test")
+-- dt.register_event("shortcut", ag.group_sequences_in_selection_callback, "selection test")
 
 local function add_file_to_group(image, filename)
 
@@ -24,7 +24,7 @@ local function generate_hdr_from_group_callback()
   hdr_gen.generate_hdr_from_table(group_list)
 end
 
-dt.register_event("shortcut", hdr_gen.generate_hdr_from_group_callback, "Generate HDR of selected groups")
+-- dt.register_event("shortcut", hdr_gen.generate_hdr_from_group_callback, "Generate HDR of selected groups")
 
 dt.preferences.register("generateHDR", "hdr_prefix", "string", "HDR postfix", "Postfix of HDR images generated from groups", "hdr_")
 dt.preferences.register("group_sequences_in_selection", "max_diff", "integer", "Max difference in image sequences", "Max time difference to consider subsequent images as part of the same sequence ", 7, 1,100)
@@ -34,4 +34,4 @@ dt.preferences.register("group_sequences_in_selection", "max_diff", "integer", "
 
  
 
-dt.register_storage("proba", "proba callback", nil, hdr_gen.export_hdr)
+-- dt.register_storage("proba", "proba callback", nil, hdr_gen.export_hdr)
