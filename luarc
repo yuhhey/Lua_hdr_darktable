@@ -214,7 +214,7 @@ function export_hdr(storage, exported_img_list)
         end
 	dt.print_error(tostring(exported_fn_table))
         if n_fns > 1 then 
-          hdr_fajl = generateHDR(exported_fn_table, image.path.."/HDR_"..image.filename..'.tif')
+          hdr_fajl = generateHDR(exported_fn_table, image.path..image.filename.."_HDR.tif")
           if hdr_fajl then
             print("Uj leader: ", hdr_fajl)
             add_HDR_to_group(image, hdr_fajl)
