@@ -24,9 +24,9 @@ local function generate_hdr_from_group_callback()
   hdr_gen.generate_hdr_from_table(group_list)
 end
 
-dt.register_event("shortcut", generate_hdr_from_group_callback, "Generate HDR of selected groups")
+dt.register_event("shortcut", hdr_gen.generate_hdr_from_group_callback, "Generate HDR of selected groups")
 
-dt.preferences.register("generateHDR", "hdr_prefix", "string", "HDR prefix", "Prefix of HDR images generated from groups", "hdr_")
+dt.preferences.register("generateHDR", "hdr_prefix", "string", "HDR postfix", "Postfix of HDR images generated from groups", "hdr_")
 dt.preferences.register("group_sequences_in_selection", "max_diff", "integer", "Max difference in image sequences", "Max time difference to consider subsequent images as part of the same sequence ", 7, 1,100)
 
 
@@ -34,4 +34,4 @@ dt.preferences.register("group_sequences_in_selection", "max_diff", "integer", "
 
  
 
-dt.register_storage("proba", "proba callback", nil, export_hdr)
+dt.register_storage("proba", "proba callback", nil, hdr_gen.export_hdr)
