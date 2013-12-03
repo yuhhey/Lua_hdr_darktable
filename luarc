@@ -5,9 +5,8 @@ dt = require "darktable"
 dt.print("Szevasz!!")
 
 
-dt.register_event("shortcut", ag.group_sequences_in_selection_callback, "selection test")
 
-local function add_file_to_group(image, filename)
+local function add_HDR_to_group(image, filename)
 
   imported_img = dt.database.import(filename)
   image.group_with(imported_img, image)
@@ -76,12 +75,18 @@ AEBChecker = {}
 -- HDR processing starts here
 
 local function group_images(img_list)
-
+  print("group_images", img_list)
   elso_kep = img_list[1]
   for _, image in pairs(img_list) do
     image.group_with(image,elso_kep)
   end
   elso_kep.make_group_leader(elso_kep)
+end
+
+local function process_hdr_list(hdrlist, n_imgs)
+  if n_imgs > 1 then
+    group_images(hdrlist)
+  end
 end
 
 -- This function assumes that the images are ordered by exif time
@@ -90,22 +95,24 @@ local function group_sequences_in_selection_callback()
   local img_list
   local hdr_list = {}
   local n_imgs = 0
+  local maxdiff
+  maxdiff = dt.preferences.read("group_sequences_in_selection", "max_diff", "integer")
   img_list = dt.gui.selection()
   elozo_kep = img_list[1]
   for _, image in pairs(img_list) do
-    if within_timediff(elozo_kep, image, 7) then
+    print(image.filename, n_imgs)
+    if within_timediff(elozo_kep, image, maxdiff) then
       n_imgs = n_imgs + 1
       hdr_list[n_imgs] = image
     else
-      if n_imgs > 1 then
-        group_images(hdr_list)
-      end
+      process_hdr_list(hdr_list, n_imgs)
       hdr_list = {}
       n_imgs = 1
       hdr_list[n_imgs] = image
     end
     elozo_kep = image
   end
+  process_hdr_list(hdr_list, n_imgs)
 end
 
 local function HDR_from_group(image)
@@ -138,11 +145,15 @@ local function generateHDR(fn_list, target_path)
 
 	local tmp_path = '/tmp'
 	local tmp_prefix = tmp_path.."/".."dt_hdr_tmp"
-	local pto_file, fn
+	local pto_file=''
+        local hdr_prefix=11
 
-	fn = fn_list[1]
-	print(fn)
-	pto_file = fn.sub(fn, 1, string.find(fn, '.', 1, true)).."pto"
+	for _,fn in pairs(fn_list) do
+	  hdr_prefix = hdr_prefix..fn.sub(fn, string.find(fn, '%d%d%d%d'))..'_'
+          print(pto_file)
+        end
+        hdr_prefix = target_path..'/'..hdr_prefix..'hdr'
+	pto_file = hdr_prefix..'.pto'
 
 	-- Build align_image_stack command
 	align_image_stack_cmd = "align_image_stack -a "..tmp_prefix.." -p "..pto_file
@@ -153,10 +164,8 @@ local function generateHDR(fn_list, target_path)
 	os.execute(align_image_stack_cmd)
 
 	-- Create the final image with enfuse
-	dot_helye = string.find(fn, '.', 1, true)
-	dt.print_error(dot_helye..fn)
-	output_fn = fn.sub(fn, dot_helye-4, dot_helye-1)
-	enfuse_cmd = "enfuse -o "..target_path..' '..tmp_prefix..'*'
+	output_fn = hdr_prefix..'tif'
+	enfuse_cmd = "enfuse -o "..output_fn..' '..tmp_prefix..'*'
 	dt.print_error(enfuse_cmd)
 	os.execute(enfuse_cmd)
 
@@ -185,8 +194,9 @@ end
 --[[ We need this function because the image object used as the index 
      of the exported_img_list of export finalize callback  is not equal to
      to images returned by dt_lua_img_t.get_group_members.
-     Probably it is a bug to be reported.
+     Bug report: http://darktable.org/redmine/issues/9698
 --]]
+
 local function lookup_the_right_image_object(img, exported_images)
   local image, fn
 
@@ -199,9 +209,9 @@ local function lookup_the_right_image_object(img, exported_images)
 end
 
 function export_hdr_callback(storage, exported_img_list)
-	local exported_fn_table = {}
+  local exported_fn_table = {}
 
-	dt.print_error("Export finished, postprocessing starts.")
+  dt.print_error("Export finished, postprocessing starts.")
 
 	for image, tmp_fn in pairs(exported_img_list) do
 		if image.is_raw and (image == image.group_leader) then
@@ -233,7 +243,9 @@ end
 -- dt.register_event("shortcut", hdr_gen.generate_hdr_from_group_callback, "Generate HDR of selected groups")
 
 dt.preferences.register("generateHDR", "hdr_prefix", "string", "HDR postfix", "Postfix of HDR images generated from groups", "hdr_")
+
 dt.preferences.register("group_sequences_in_selection", "max_diff", "integer", "Max difference in image sequences", "Max time difference to consider subsequent images as part of the same sequence ", 7, 1,100)
 
 
--- dt.register_storage("proba", "proba callback", nil, hdr_gen.export_hdr)
+dt.register_storage("Generate HDR" ,"generate HDR", nil, export_hdr_callback)
+dt.register_event("shortcut", group_sequences_in_selection_callback, "group HDR sequences in selection")
