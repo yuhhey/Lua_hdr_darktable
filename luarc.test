@@ -1,0 +1,50 @@
+dt = require "darktable"
+
+
+local function add_HDR_to_group(image, filename)
+
+  imported_img = dt.database.import(filename)
+  image.group_with(imported_img, image)
+  image.make_group_leader(imported_img)
+end
+
+
+local function group_images(img_list)
+  print("group_images", img_list)
+  elso_kep = img_list[1]
+  for _, image in pairs(img_list) do
+    image.group_with(image,elso_kep)
+  end
+  elso_kep.make_group_leader(elso_kep)
+end
+
+
+local function worker()
+  max = math.random(100000, 1000000)
+
+  print("Worker - max = ", max)
+  for i = 0, max, 1 do
+    f = i
+  end
+end
+
+local function callback(storage, exported_img_list)
+  dt.print_error("Export finished, postprocessing starts.")
+
+  local hdr_fajl = {}
+  local i = 1
+  for image, tmp_fn in pairs(exported_img_list) do
+    worker()
+    fn = tmp_fn..'tif'
+    print("New leader: ", fn)
+    add_HDR_to_group(image, fn)
+    i = i + 1
+  end
+  dt.print_error("Ennyi volt!")
+end
+
+dt.preferences.register("generateHDR", "hdr_prefix", "string", "HDR postfix", "Postfix of HDR images generated from groups", "hdr_")
+
+dt.preferences.register("group_sequences_in_selection", "max_diff", "integer", "Max difference in image sequences", "Max time difference to consider subsequent images as part of the same sequence ", 7, 1,100)
+
+dt.register_storage("Test callback" ,"callback", nil, callback)
