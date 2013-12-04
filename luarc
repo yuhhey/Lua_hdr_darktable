@@ -1,10 +1,5 @@
 dt = require "darktable"
 
--- table = require "table"
-
-dt.print("Szevasz!!")
-
-
 
 local function add_HDR_to_group(image, filename)
 
@@ -12,15 +7,6 @@ local function add_HDR_to_group(image, filename)
   image.group_with(imported_img, image)
   image.make_group_leader(imported_img)
 end
-
-
-local function generate_hdr_from_group_callback()
-  local group_list
-
-  group_list = dt.gui.selection()
-  hdr_gen.generate_hdr_from_table(group_list)
-end
-
 
 
 local function parse_datetime(d)
@@ -33,6 +19,7 @@ local function parse_datetime(d)
    sec = string.sub(d, 18, 19)
    return os.time{year=year, month=month, day=day, hour=hour, min=min, sec=sec} 
 end
+
 
 local function get_time_pair(image)
   kezdo = parse_datetime(image.exif_datetime_taken)
@@ -49,30 +36,6 @@ local function within_timediff(img1, img2, maxdiff)
   end
   return false
 end
-
---[[
-AEBChecker = {}
-    def __init__(self):
-        self.reset()
-            
-    def reset(self):
-        self.ebvs = list()
-       
-    def __call__(self, comp_img, s_img):
-        
-        if 2 != s_img['Exif.Photo.ExposureMode']:
-            return false
-        ebv = s_img['Exif.Photo.ExposureBiasValue']
-        if len(self.ebvs) != 0:
-            #ebv = comp_img[key][Sequence.METADATA]['Exif.Photo.ExposureBiasValue'].value
-            if ebv in self.ebvs:
-                return false
-        
-        self.ebvs.append(ebv)
-        return true
---]]
-
--- HDR processing starts here
 
 local function group_images(img_list)
   print("group_images", img_list)
@@ -115,81 +78,63 @@ local function group_sequences_in_selection_callback()
   process_hdr_list(hdr_list, n_imgs)
 end
 
-local function HDR_from_group(image)
-	local imgs
-	imgs = image.get_group_members(image)
-	hdr_img_path = HDR_from_image_table(imgs, image.path)
+-- HDR processing starts here
 
-	-- Import the HDR, add to the selection and set it as the group leader
-	imported_img = dt.database.import(hdr_img_path)
-	dt.print_error(imported_img.filename)
-	image.group_with(imported_img, image)
-	image.make_group_leader(imported_img)
+-- Section for workaround bug http://www.darktable.org/redmine/issues/9706
+local function get_last_dot(path)
+  local i = 0
+
+  while(i) do
+    f = i
+    i = path:find('%.', i+1)
+  end
+  return f
 end
 
-local function HDR_from_image_table(img_table, target_path)
-
-	local tmp_prefix = image.path.."/".."dt_hdr_tmp"
-	local fn_list = {}
-
-	for i, img in ipairs(img_table) do
-		fn_list[i] = img.path.."/"..img.filename
-	end
-
-	return generateHDR(fn_list, target_path)
+local function dot_is_the_last_character(path)
+  return (get_last_dot(path) == path:len())
 end
+-- End of workaround section
+
 
 -- fn_list: full path filenames
 -- target_path: full path of the generated image
 local function generateHDR(fn_list, target_path)
 
-	local tmp_path = '/tmp'
-	local tmp_prefix = tmp_path.."/".."dt_hdr_tmp"
-	local pto_file=''
-        local hdr_prefix=11
+  local tmp_path = '/tmp'
+  local tmp_prefix = tmp_path.."/".."dt_hdr_tmp"
+  local pto_file=''
+  local hdr_prefix=''
 
-	for _,fn in pairs(fn_list) do
-	  hdr_prefix = hdr_prefix..fn.sub(fn, string.find(fn, '%d%d%d%d'))..'_'
-          print(pto_file)
-        end
-        hdr_prefix = target_path..'/'..hdr_prefix..'hdr'
-	pto_file = hdr_prefix..'.pto'
+  for _,fn in pairs(fn_list) do
+    hdr_prefix = hdr_prefix..fn.sub(fn, string.find(fn, '%d%d%d%d'))..'_'
+    print(pto_file)
+  end
+  hdr_prefix = target_path..'/'..hdr_prefix..'hdr'
+  pto_file = hdr_prefix..'.pto'
 
-	-- Build align_image_stack command
-	align_image_stack_cmd = "align_image_stack -a "..tmp_prefix.." -p "..pto_file
-	for i, img in ipairs(fn_list) do
-		align_image_stack_cmd = align_image_stack_cmd.." "..img
-	end
-	dt.print_error(align_image_stack_cmd)
-	os.execute(align_image_stack_cmd)
+ -- Build align_image_stack command
+  align_image_stack_cmd = "align_image_stack -a "..tmp_prefix.." -p "..pto_file
+  for _, fn in pairs(fn_list) do
+    align_image_stack_cmd = align_image_stack_cmd.." "..fn
+  end
+  dt.print_error(align_image_stack_cmd)
+  os.execute(align_image_stack_cmd)
 
-	-- Create the final image with enfuse
-	output_fn = hdr_prefix..'tif'
-	enfuse_cmd = "enfuse -o "..output_fn..' '..tmp_prefix..'*'
-	dt.print_error(enfuse_cmd)
-	os.execute(enfuse_cmd)
+ -- Create the final image with enfuse
+  output_fn = hdr_prefix..'.tif'
+  enfuse_cmd = "enfuse -o "..output_fn..' '..tmp_prefix..'*'
+  dt.print_error(enfuse_cmd)
+  os.execute(enfuse_cmd)
 
-	-- Finally we delete the temporary files
-	rm_cmd = "rm "..tmp_prefix..'*'
-	dt.print_error(rm_cmd)
-	os.execute(rm_cmd)
+ -- Finally we delete the temporary files
+  rm_cmd = "rm "..tmp_prefix..'*'
+  dt.print_error(rm_cmd)
+  os.execute(rm_cmd)
 
-	return target_path
+  return output_fn
 end
 
-local function generate_hdr_from_table(img_table)
-
-	for i, image in pairs(img_table) do
-		if image.is_raw then
-			if image == image.group_leader then
-				-- TODO: a target path-t még meg kell csinálni.
-				generateHDR(image)
-			end
-		else
-			dt.print_error(image.filename.." is raw. Skipping...")
-		end
-	end
-end
 
 --[[ We need this function because the image object used as the index 
      of the exported_img_list of export finalize callback  is not equal to
@@ -208,39 +153,41 @@ local function lookup_the_right_image_object(img, exported_images)
   return nil
 end
 
-function export_hdr_callback(storage, exported_img_list)
+local function export_hdr_callback(storage, exported_img_list)
   local exported_fn_table = {}
 
   dt.print_error("Export finished, postprocessing starts.")
 
-	for image, tmp_fn in pairs(exported_img_list) do
-		if image.is_raw and (image == image.group_leader) then
-			imgs = image.get_group_members(image)
-			local n_fns = 0
-			for i, img in ipairs(imgs) do
-				good_img = lookup_the_right_image_object(img, exported_img_list)
-				exported_fn_table[i] = exported_img_list[good_img]
-				dt.print_error(i..tostring(img)..','..exported_fn_table[i])
-				n_fns = n_fns + 1
-			end
-			dt.print_error(tostring(exported_fn_table))
-			if n_fns > 1 then
-				hdr_fajl = generateHDR(exported_fn_table, image.path..image.filename.."_HDR.tif")
-				if hdr_fajl then
-					print("Uj leader: ", hdr_fajl)
-					add_HDR_to_group(image, hdr_fajl)
-				end
-			end
-		else
-			print("Nem leader vagy nem raw", image.filename)
-		end
+  for image, tmp_fn in pairs(exported_img_list) do
+    if image.is_raw and (image == image.group_leader) then
+      imgs = image.get_group_members(image)
+      local n_fns = 0
+      for i, img in ipairs(imgs) do
+        good_img = lookup_the_right_image_object(img, exported_img_list)
+        exported_fn_table[i] = exported_img_list[good_img]
+        if dot_is_the_last_character(exported_fn_table[i]) then
+          ld = get_last_dot(img.filename)
+          extension = img.filename:sub(ld+1, img.filename:len())
+          exported_fn_table[i] = exported_fn_table[i]..extension
+        end
+        dt.print_error(i..tostring(img)..','..exported_fn_table[i])
+	n_fns = n_fns + 1
+      end
+      dt.print_error(tostring(exported_fn_table))
+      if n_fns > 1 then
+        hdr_path = image.path -- ..'/'..image.filename.."_HDR.tif"
+	hdr_fajl = generateHDR(exported_fn_table, hdr_path)
+	if hdr_fajl then
+	  print("Uj leader: ", hdr_fajl)
+	  add_HDR_to_group(image, hdr_fajl)
 	end
-
-	dt.print_error("Ennyi volt!")
-
+      end
+    else
+      print("Nem leader vagy nem raw", image.filename)
+    end
+  end
+  dt.print_error("Ennyi volt!")
 end
-
--- dt.register_event("shortcut", hdr_gen.generate_hdr_from_group_callback, "Generate HDR of selected groups")
 
 dt.preferences.register("generateHDR", "hdr_prefix", "string", "HDR postfix", "Postfix of HDR images generated from groups", "hdr_")
 
