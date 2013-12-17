@@ -205,13 +205,19 @@ dt.preferences.register("group_sequences_in_selection",
 			1,
 			100)
 
+dt.register_event("shortcut",
+                  group_sequences_in_selection_callback,
+                  "group HDR sequences in selection")
 
-dt.preferences.register("generateHDR",
+dt.preferences.register("genHDR",
 			"keep_intermediate_file",
 			"bool",
 			"Keep the exported intermediate files",
 			"Does not delete the exported files in ~/.local/tmp if checked",
 			false)
 
-dt.register_storage("Generate HDR" ,"generate HDR", nil, export_hdr_callback)
-dt.register_event("shortcut", group_sequences_in_selection_callback, "group HDR sequences in selection")
+dt.register_storage("Generate HDR",
+		    "generate HDR",
+                    nil,
+                    export_hdr_callback)
+
