@@ -193,6 +193,7 @@ dt.preferences.register("generateHDR", "hdr_prefix", "string", "HDR postfix", "P
 
 dt.preferences.register("group_sequences_in_selection", "max_diff", "integer", "Max difference in image sequences", "Max time difference to consider subsequent images as part of the same sequence ", 7, 1,100)
 
+dt.preferences.register("generateHDR", "keep_intermediate_file", "bool", "Keep the export intermediate files", False)
 
 dt.register_storage("Generate HDR" ,"generate HDR", nil, export_hdr_callback)
 dt.register_event("shortcut", group_sequences_in_selection_callback, "group HDR sequences in selection")
