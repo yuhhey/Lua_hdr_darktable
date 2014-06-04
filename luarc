@@ -1,11 +1,18 @@
 dt = require "darktable"
 
 
+
+local function copy_exif_data(from_img, to_img)
+  to_img.exif_maker = from_img.exif_maker
+  to_img.exif_datetime_taken = from_img.exif_datetime_taken
+end
+
 local function add_HDR_to_group(image, filename)
 
   imported_img = dt.database.import(filename)
+  -- copy_exif_data(image, imported_img)
   image.group_with(imported_img, image)
-  image.make_group_leader(imported_img)
+  -- imported_img.make_group_leader(imported_img)
 end
 
 
@@ -94,8 +101,25 @@ end
 local function dot_is_the_last_character(path)
   return (get_last_dot(path) == path:len())
 end
+
+local function Issue_9706_workaround(exported_fn, img_fn)
+  if dot_is_the_last_character(exported_fn) then
+    ld = get_last_dot(img_fn)
+    extension = img_fn:sub(ld+1, img_fn:len())
+    return exported_fn..extension
+  else
+    return exported_fn
+  end
+end
 -- End of workaround section
 
+local function create_cmd_filelist(cmd, fnlist)
+  dt.print_error(cmd)
+  for _, fn in pairs(fnlist) do
+    cmd = cmd.." "..fn
+  end
+  return cmd
+end
 
 -- fn_list: full path filenames
 -- target_path: full path of the generated image
@@ -108,16 +132,13 @@ local function generateHDR(fn_list, target_path)
 
   for _,fn in pairs(fn_list) do
     hdr_prefix = hdr_prefix..fn.sub(fn, string.find(fn, '%d%d%d%d'))..'_'
-    print(pto_file)
   end
   hdr_prefix = target_path..'/'..hdr_prefix..'hdr'
   pto_file = hdr_prefix..'.pto'
 
  -- Build align_image_stack command
   align_image_stack_cmd = "align_image_stack -a "..tmp_prefix.." -p "..pto_file
-  for _, fn in pairs(fn_list) do
-    align_image_stack_cmd = align_image_stack_cmd.." "..fn
-  end
+  align_image_stack_cmd = create_cmd_filelist(align_image_stack_cmd, fn_list)
   dt.print_error(align_image_stack_cmd)
   os.execute(align_image_stack_cmd)
 
@@ -126,11 +147,24 @@ local function generateHDR(fn_list, target_path)
   enfuse_cmd = "enfuse -o "..output_fn..' '..tmp_prefix..'*'
   dt.print_error(enfuse_cmd)
   os.execute(enfuse_cmd)
+  
+  -- Copy exiftags 
+  exiftool_cmd = "exiftool -tagsfromfile "..fn_list[1].." "..output_fn
+  dt.print_error(exiftool_cmd)
+  os.execute(exiftool_cmd)
 
  -- Finally we delete the temporary files
   rm_cmd = "rm "..tmp_prefix..'*'
   dt.print_error(rm_cmd)
   os.execute(rm_cmd)
+  
+  -- Delete files in .local/tmp unless config says to keep them
+  if not dt.preferences.read("generateHDR", "keep_intermediate_file", "bool") then
+    rm_cmd = "rm "
+    rm_cmd = create_cmd_filelist(rm_cmd, fn_list)
+    dt.print_error(rm_cmd)
+    os.execute(rm_cmd)
+   end
 
   return output_fn
 end
@@ -153,40 +187,59 @@ local function lookup_the_right_image_object(img, exported_images)
   return nil
 end
 
-local function export_hdr_callback(storage, exported_img_list)
-  local exported_fn_table = {}
+local function isExported(img)
+  return img ~= nil
+end
 
+
+local function buildExportedImgTable(imgs)
+  local n_fns = 0
+  local exported_fn_table = {}
+  
+  for i, img in ipairs(imgs) do
+    dt.print_error("i = "..tostring(i))
+    good_img = lookup_the_right_image_object(img, exported_img_list)
+    if isExported(good_img) then
+      exported_fn_table[i] = Issue_9706_workaround(exported_img_list[good_img],
+                                                   img.filename)
+      dt.print_error(i..tostring(img)..','..exported_fn_table[i])
+	  n_fns = n_fns + 1
+    end
+  end
+  return n_fns, exported_fn_table
+end
+
+local function export_hdr_callback(storage, exported_img_list)
   dt.print_error("Export finished, postprocessing starts.")
 
   for image, tmp_fn in pairs(exported_img_list) do
     if image.is_raw and (image == image.group_leader) then
       imgs = image.get_group_members(image)
-      local n_fns = 0
-      for i, img in ipairs(imgs) do
-        good_img = lookup_the_right_image_object(img, exported_img_list)
-        exported_fn_table[i] = exported_img_list[good_img]
-        if dot_is_the_last_character(exported_fn_table[i]) then
-          ld = get_last_dot(img.filename)
-          extension = img.filename:sub(ld+1, img.filename:len())
-          exported_fn_table[i] = exported_fn_table[i]..extension
-        end
-        dt.print_error(i..tostring(img)..','..exported_fn_table[i])
-	n_fns = n_fns + 1
-      end
+      
+      n_fns, exported_fn_table = buildExportedImgFnTable(imgs)
+      
       dt.print_error(tostring(exported_fn_table))
       if n_fns > 1 then
         hdr_path = image.path -- ..'/'..image.filename.."_HDR.tif"
-	hdr_fajl = generateHDR(exported_fn_table, hdr_path)
-	if hdr_fajl then
-	  print("Uj leader: ", hdr_fajl)
-	  add_HDR_to_group(image, hdr_fajl)
-	end
+	    hdr_fajl = generateHDR(exported_fn_table, hdr_path)
+	    if hdr_fajl then
+	      print("Uj leader: ", hdr_fajl)
+	      add_HDR_to_group(image, hdr_fajl)
+	    end
       end
     else
       print("Nem leader vagy nem raw", image.filename)
     end
   end
   dt.print_error("Ennyi volt!")
+end
+
+
+local function generateHDRFromSingleImg(img)
+  img_list = createDuplicates(img)
+  
+  n_fns, exported_fn_table = buildExportedImgFnTable(img_list)
+  generateHDR(exported_fn_table, img.path)  
 end
 
 dt.preferences.register("generateHDR", 
