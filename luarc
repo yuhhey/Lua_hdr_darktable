@@ -13,6 +13,8 @@ local function add_HDR_to_group(image, filename)
   -- copy_exif_data(image, imported_img)
   image.group_with(imported_img, image)
   -- imported_img.make_group_leader(imported_img)
+  hdr_tag = dt.tags.find("HDR")
+  dt.tags.attach(hdr_tag, imported_img)
 
 end
 
@@ -29,7 +31,7 @@ local function parse_datetime(d)
 end
 
 
-local function get_time_pair(image)
+local function getStartAndEndOfShot(image)
   kezdo = parse_datetime(image.exif_datetime_taken)
   veg = kezdo + image.exif_exposure
   return kezdo, veg
@@ -37,8 +39,8 @@ end
 
 
 local function within_timediff(img1, img2, maxdiff)
-  img1_beg, img1_end = get_time_pair(img1)
-  img2_beg, img2_end = get_time_pair(img2)
+  _, img1_end = getStartAndEndOfShot(img1)
+  img2_beg, _ = getStartAndEndOfShot(img2)
   if (img2_beg-img1_end) < maxdiff then
     return true
   end
@@ -98,16 +100,6 @@ local function create_hdr_prefix(target_path, fn_list)
   return hdr_prefix
 end
 
-local function execute_align_image_stack(hdr_prefix, tmp_prefix, fn_list)
-  pto_file = hdr_prefix..'.pto'
-  align_image_stack_cmd = "align_image_stack -a "..tmp_prefix.." -p "..pto_file
-  for _, fn in pairs(fn_list) do
-    align_image_stack_cmd = align_image_stack_cmd.." "..fn
-  end
-  dt.print_error(align_image_stack_cmd)
-  os.execute(align_image_stack_cmd)
-end
-
 local function Issue_9706_workaround(exported_fn, img_fn)
   if dot_is_the_last_character(exported_fn) then
     ld = get_last_dot(img_fn)
@@ -119,6 +111,50 @@ local function Issue_9706_workaround(exported_fn, img_fn)
 end
 -- End of workaround section
 
+-- fn_list: full path filenames
+-- target_path: full path of the generated image
+local function generateHDR(fn_list, target_path)
+
+  local tmp_path = '/tmp'
+  local tmp_prefix = tmp_path.."/".."dt_hdr_tmp"
+  local hdr_prefix = buildHDRPrefix(fn_list, target_path)
+  local pto_file = hdr_prefix..'.pto'
+  local output_fn = hdr_prefix..'.tif'
+  
+ -- Build align_image_stack command
+  align_image_stack_cmd = "align_image_stack -a "..tmp_prefix.." -p "..pto_file
+  align_image_stack_cmd = create_cmd_filelist(align_image_stack_cmd, fn_list)
+  execute(align_image_stack_cmd)
+
+ -- Create the final image with enfuse
+  enfuse_cmd = "enfuse -o "..output_fn..' '..tmp_prefix..'*'
+  execute(enfuse_cmd)
+
+  execute("exiftool -tagsfromfile "..fn_list[1].." "..output_fn)
+
+  -- Finally we delete the temporary files
+  rm_cmd = "rm "..tmp_prefix..'*'
+  execute(rm_cmd)
+  
+  if not keepIntermediateFiles() then
+    rm_cmd = create_cmd_filelist("rm ", fn_list)
+    execute(rm_cmd)
+  end
+  return output_fn
+end
+
+local function keepIntermediateFiles()
+  return dt.preferences.read("generateHDR", "keep_intermediate_file", "bool")
+end
+
+local function buildHDRPrefix(fn_list, target_path)
+  local hdr_prefix=''
+  for _,fn in pairs(fn_list) do
+    hdr_prefix = hdr_prefix..fn.sub(fn, string.find(fn, '%d%d%d%d'))..'_'
+  end
+  return target_path..'/'..hdr_prefix..'hdr'
+end
+
 local function create_cmd_filelist(cmd, fnlist)
   dt.print_error(cmd)
   for _, fn in pairs(fnlist) do
@@ -127,52 +163,9 @@ local function create_cmd_filelist(cmd, fnlist)
   return cmd
 end
 
--- fn_list: full path filenames
--- target_path: full path of the generated image
-local function generateHDR(fn_list, target_path)
-
-  local tmp_path = '/tmp'
-  local tmp_prefix = tmp_path.."/".."dt_hdr_tmp"
-  local pto_file=''
-  local hdr_prefix=''
-
-
-  for _,fn in pairs(fn_list) do
-    hdr_prefix = hdr_prefix..fn.sub(fn, string.find(fn, '%d%d%d%d'))..'_'
-  end
-  hdr_prefix = target_path..'/'..hdr_prefix..'hdr'
-  pto_file = hdr_prefix..'.pto'
-
- -- Build align_image_stack command
-  align_image_stack_cmd = "align_image_stack -a "..tmp_prefix.." -p "..pto_file
-  align_image_stack_cmd = create_cmd_filelist(align_image_stack_cmd, fn_list)
-  dt.print_error(align_image_stack_cmd)
-  os.execute(align_image_stack_cmd)
-
- -- Create the final image with enfuse
-  output_fn = hdr_prefix..'.tif'
-  enfuse_cmd = "enfuse -o "..output_fn..' '..tmp_prefix..'*'
-  dt.print_error(enfuse_cmd)
-  os.execute(enfuse_cmd)
-  
-  -- Copy exiftags 
-  exiftool_cmd = "exiftool -tagsfromfile "..fn_list[1].." "..output_fn
-  dt.print_error(exiftool_cmd)
-  os.execute(exiftool_cmd)
-
- -- Finally we delete the temporary files
-  rm_cmd = "rm "..tmp_prefix..'*'
-  dt.print_error(rm_cmd)
-  os.execute(rm_cmd)
-  
-  -- Delete files in .local/tmp unless config says to keep them
-  if not dt.preferences.read("generateHDR", "keep_intermediate_file", "bool") then
-    rm_cmd = "rm "
-    rm_cmd = create_cmd_filelist(rm_cmd, fn_list)
-    dt.print_error(rm_cmd)
-    os.execute(rm_cmd)
-   end
-   return output_fn
+local function execute(cmd)
+  dt.print_error(cmd)
+  os.execute(cmd)
 end
 
 
@@ -193,7 +186,6 @@ local function lookup_the_right_image_object(img, exported_images)
   return nil
 end
 
-<<<<<<< HEAD
 local function isExported(img)
   return img ~= nil
 end
@@ -216,7 +208,7 @@ local function buildExportedImgTable(imgs)
   return n_fns, exported_fn_table
 end
 
-local function export_hdr_callback(storage, exported_img_list)
+local function export_hdr_finalize_callback(storage, exported_img_list)
   dt.print_error("Export finished, postprocessing starts.")
 
   for image, tmp_fn in pairs(exported_img_list) do
@@ -275,7 +267,7 @@ dt.preferences.register("genHDR",
 			false)
 
 dt.register_storage("Generate HDR",
-		    "generate HDR",
+		            "generate HDR",
                     nil,
-                    export_hdr_callback)
+                    export_hdr_finalize_callback)
 
