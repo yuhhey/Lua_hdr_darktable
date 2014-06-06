@@ -291,6 +291,6 @@ dt.register_storage("Generate HDR",
                     export_hdr_finalize_callback)
                     
 if nil == dt.tags.find("HDR") then
-  dt.tags.create()"HDR")
+  dt.tags.create("HDR")
 end
 
