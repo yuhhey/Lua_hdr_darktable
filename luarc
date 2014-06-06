@@ -10,11 +10,11 @@ end
 local function add_HDR_to_group(image, filename)
 
   imported_img = dt.database.import(filename)
-  -- copy_exif_data(image, imported_img)
+  copy_exif_data(image, imported_img)
   image.group_with(imported_img, image)
-  -- imported_img.make_group_leader(imported_img)
   hdr_tag = dt.tags.find("HDR")
   dt.tags.attach(hdr_tag, imported_img)
+  imported_img.make_group_leader(imported_img)
 
 end
 
@@ -133,7 +133,7 @@ local function generateHDR(fn_list, target_path)
   enfuse_cmd = "enfuse -o "..output_fn..' '..tmp_prefix..'*'
   execute(enfuse_cmd)
 
-  execute("exiftool -tagsfromfile "..fn_list[1].." "..output_fn)
+  -- execute("exiftool -tagsfromfile "..fn_list[1].." "..output_fn)
 
   -- Finally we delete the temporary files
   rm_cmd = "rm "..tmp_prefix..'*'
