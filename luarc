@@ -279,8 +279,14 @@ dt.preferences.register("genHDR",
 			"Does not delete the exported files in ~/.local/tmp if checked",
 			false)
 
+
+local function dummy_store(storage,image,format,filename,number,total,
+high_quality,extra_data)
+  return
+end
+
 dt.register_storage("Generate HDR",
-		            "generate HDR",
-                    nil,
+		    "generate HDR",
+                    dummy_store,
                     export_hdr_finalize_callback)
 
