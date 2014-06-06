@@ -88,29 +88,32 @@ local function group_sequences_in_selection_callback()
   process_hdr_list(hdr_list, n_imgs)
 end
 
--- HDR processing starts here
+local function keepIntermediateFiles()
+  return dt.preferences.read("generateHDR", "keep_intermediate_file", "bool")
+end
 
-local function create_hdr_prefix(target_path, fn_list)
-  local hdr_prefix =''
+local function buildHDRPrefix(fn_list, target_path)
+  local hdr_prefix=''
   for _,fn in pairs(fn_list) do
     hdr_prefix = hdr_prefix..fn.sub(fn, string.find(fn, '%d%d%d%d'))..'_'
-    print(pto_file)
   end
-  hdr_prefix = target_path..'/'..hdr_prefix..'hdr'
-  return hdr_prefix
+  return target_path..'/'..hdr_prefix..'hdr'
 end
 
-local function Issue_9706_workaround(exported_fn, img_fn)
-  if dot_is_the_last_character(exported_fn) then
-    ld = get_last_dot(img_fn)
-    extension = img_fn:sub(ld+1, img_fn:len())
-    return exported_fn..extension
-  else
-    return exported_fn
+local function create_cmd_filelist(cmd, fnlist)
+  dt.print_error(cmd)
+  for _, fn in pairs(fnlist) do
+    cmd = cmd.." "..fn
   end
+  return cmd
 end
--- End of workaround section
 
+local function execute(cmd)
+  dt.print_error(cmd)
+  os.execute(cmd)
+end
+
+-- HDR processing starts here
 -- fn_list: full path filenames
 -- target_path: full path of the generated image
 local function generateHDR(fn_list, target_path)
@@ -143,29 +146,38 @@ local function generateHDR(fn_list, target_path)
   return output_fn
 end
 
-local function keepIntermediateFiles()
-  return dt.preferences.read("generateHDR", "keep_intermediate_file", "bool")
-end
-
-local function buildHDRPrefix(fn_list, target_path)
-  local hdr_prefix=''
+local function create_hdr_prefix(target_path, fn_list)
+  local hdr_prefix =''
   for _,fn in pairs(fn_list) do
     hdr_prefix = hdr_prefix..fn.sub(fn, string.find(fn, '%d%d%d%d'))..'_'
+    print(pto_file)
   end
-  return target_path..'/'..hdr_prefix..'hdr'
+  hdr_prefix = target_path..'/'..hdr_prefix..'hdr'
+  return hdr_prefix
 end
 
-local function create_cmd_filelist(cmd, fnlist)
-  dt.print_error(cmd)
-  for _, fn in pairs(fnlist) do
-    cmd = cmd.." "..fn
+local function get_last_dot(path)
+  local i = 0
+
+  while(i) do
+    f = i
+    i = path:find('%.', i+1)
   end
-  return cmd
+  return f
 end
 
-local function execute(cmd)
-  dt.print_error(cmd)
-  os.execute(cmd)
+local function dotIsTheLastCharacter(path)
+  return (get_last_dot(path) == path:len())
+end
+
+local function Issue_9706_workaround(exported_fn, img_fn)
+  if dotIsTheLastCharacter(exported_fn) then
+    ld = get_last_dot(img_fn)
+    extension = img_fn:sub(ld+1, img_fn:len())
+    return exported_fn..extension
+  else
+    return exported_fn
+  end
 end
 
 
@@ -191,7 +203,7 @@ local function isExported(img)
 end
 
 
-local function buildExportedImgTable(imgs)
+local function buildExportedImgFnTable(imgs, exported_img_list)
   local n_fns = 0
   local exported_fn_table = {}
   
@@ -214,12 +226,13 @@ local function export_hdr_finalize_callback(storage, exported_img_list)
   for image, tmp_fn in pairs(exported_img_list) do
     if image.is_raw and (image == image.group_leader) then
       imgs = image.get_group_members(image)
-      n_fns, exported_fn_table = buildExportedImgFnTable(imgs)
+      n_fns, exported_fn_table = buildExportedImgFnTable(imgs,
+                                                         exported_img_list)
       dt.print_error(tostring(exported_fn_table))
       if n_fns > 1 then
         hdr_path = image.path -- ..'/'..image.filename.."_HDR.tif"
 	    hdr_fajl = generateHDR(exported_fn_table, hdr_path)
-	    if hdr_fajl then
+	    if hdr_fajl ~= nil then
 	      print("Uj leader: ", hdr_fajl)
 	      add_HDR_to_group(image, hdr_fajl)
 	    end
