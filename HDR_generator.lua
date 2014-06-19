@@ -141,7 +141,7 @@ local function generateHDR(fn_list, target_path)
   execute(align_image_stack_cmd)
 
  -- Create the final image with enfuse
-  enfuse_cmd = "enfuse -o "..output_fn..' '..tmp_prefix..'*'
+  enfuse_cmd = "enfuse-mp --no-ciecam -o "..output_fn..' '..tmp_prefix..'*'
   execute(enfuse_cmd)
 
   execute("exiftool -overwrite_original -tagsfromfile "..fn_list[1].." "..output_fn)
