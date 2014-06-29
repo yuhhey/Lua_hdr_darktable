@@ -22,13 +22,12 @@ end
 
 
 local function parse_datetime(d)
-   local year
-   year = string.sub(d, 1, 4)
-   month = string.sub(d, 6, 7)
-   da = string.sub(d, 9, 10)
-   hour = string.sub(d, 12, 13)
-   min = string.sub(d, 15, 16)
-   sec = string.sub(d, 18, 19)
+   local year = string.sub(d, 1, 4)
+   local month = string.sub(d, 6, 7)
+   local da = string.sub(d, 9, 10)
+   local hour = string.sub(d, 12, 13)
+   local min = string.sub(d, 15, 16)
+   local sec = string.sub(d, 18, 19)
    return os.time{year=year, month=month, day=da, hour=hour, min=min, sec=sec} 
 end
 
@@ -53,7 +52,7 @@ end
 
 local function group_images(img_list)
   print("group_images", img_list)
-  elso_kep = img_list[1]
+  local elso_kep = img_list[1]
   for _, image in pairs(img_list) do
     image.group_with(image,elso_kep)
   end
@@ -124,6 +123,26 @@ local function execute(cmd)
   os.execute(cmd)
 end
 
+local function executeEnfuse(output_fn, input_prefix)
+  execute("enfuse-mp --no-ciecam -o "..output_fn..' '..input_prefix..'*')
+end
+
+local function executeAlignImageStack(tmp_prefix, pto_file, fn_list)
+  align_image_stack_cmd = "align_image_stack -a "..tmp_prefix.." -p "..pto_file
+  align_image_stack_cmd = append_filelist(align_image_stack_cmd, fn_list)
+  execute(align_image_stack_cmd)
+end
+
+local function getValidFilename(fnlist)  
+  for _, fn in pairs(fnlist) do
+    dt.print_error(tostring(i))
+    if fn ~= nil then
+      return fn
+    end
+  end
+  return nil
+end
+
 -- HDR processing starts here
 -- fn_list: full path filenames
 -- target_path: full path of the generated image
@@ -135,18 +154,13 @@ local function generateHDR(fn_list, target_path)
   local pto_file = hdr_prefix..'.pto'
   local output_fn = hdr_prefix..'.tif'
   
- -- Build align_image_stack command
-  align_image_stack_cmd = "align_image_stack -a "..tmp_prefix.." -p "..pto_file
-  align_image_stack_cmd = append_filelist(align_image_stack_cmd, fn_list)
-  execute(align_image_stack_cmd)
+  executeAlignImageStack(tmp_prefix, pto_file, fn_list)
 
- -- Create the final image with enfuse
-  enfuse_cmd = "enfuse-mp --no-ciecam -o "..output_fn..' '..tmp_prefix..'*'
-  execute(enfuse_cmd)
+  executeEnfuse(output_fn, tmp_prefix)
+  
+  local f = getValidFilename(fn_list)
+  execute("exiftool -overwrite_original -tagsfromfile "..f.." "..output_fn)
 
-  execute("exiftool -overwrite_original -tagsfromfile "..fn_list[1].." "..output_fn)
-
-  -- Finally we delete the temporary files
   rm_cmd = "rm "..tmp_prefix..'*'
   execute(rm_cmd)
   
