@@ -83,23 +83,28 @@ local function group_sequences_in_selection_callback()
   img_list = dt.gui.selection()
   elozo_kep = img_list[1]
   for _, image in pairs(img_list) do
+    print(elozo_kep.filename, n_imgs )
     print(image.filename, n_imgs)
-    if isWithinTimediff(elozo_kep, image, maxdiff) then
-      n_imgs = n_imgs + 1
-      hdr_list[n_imgs] = image
-    else
-      process_hdr_list(hdr_list, n_imgs)
-      hdr_list = {}
-      n_imgs = 1
-      hdr_list[n_imgs] = image
+    if elozo_kep.is_raw and image.is_raw then
+      if isWithinTimediff(elozo_kep, image, maxdiff) then
+        n_imgs = n_imgs + 1
+        hdr_list[n_imgs] = image
+      else
+        process_hdr_list(hdr_list, n_imgs)
+        hdr_list = {}
+        n_imgs = 1
+        hdr_list[n_imgs] = image
+      end
     end
     elozo_kep = image
   end
   process_hdr_list(hdr_list, n_imgs)
+  dt.print_error("Végeztünk")
 end
 
 local function keepIntermediateFiles()
-  return dt.preferences.read("generateHDR", "keep_intermediate_file", "bool")
+  dt.print_error(tostring(dt.preferences.read("genHDR", "keep_intermediate_file", "bool")))
+  return dt.preferences.read("genHDR", "keep_intermediate_file", "bool")
 end
 
 local function buildHDRPrefix(fn_list, target_path)
@@ -107,7 +112,10 @@ local function buildHDRPrefix(fn_list, target_path)
   for _,fn in pairs(fn_list) do
     hdr_prefix = hdr_prefix..fn.sub(fn, string.find(fn, '%d%d%d%d'))..'_'
   end
-  return target_path..'/'..hdr_prefix..'hdr'
+  hdr_postfix = dt.preferences.read("generateHDR", 
+									"hdr_postfix",
+									"string")
+  return target_path..'/'..hdr_prefix..hdr_postfix
 end
 
 local function append_filelist(cmd, fnlist)
@@ -144,16 +152,16 @@ local function getValidFilename(fnlist)
 end
 
 -- HDR processing starts here
--- fn_list: full path filenames
+-- fn_list: full path input filenames
 -- target_path: full path of the generated image
 local function generateHDR(fn_list, target_path)
 
-  local tmp_path = '/tmp'
-  local tmp_prefix = tmp_path.."/".."dt_hdr_tmp"
+
   local hdr_prefix = buildHDRPrefix(fn_list, target_path)
   local pto_file = hdr_prefix..'.pto'
   local output_fn = hdr_prefix..'.tif'
-  
+  local tmp_prefix = hdr_prefix.."_AIS_"
+
   executeAlignImageStack(tmp_prefix, pto_file, fn_list)
 
   executeEnfuse(output_fn, tmp_prefix)
@@ -161,8 +169,10 @@ local function generateHDR(fn_list, target_path)
   local f = getValidFilename(fn_list)
   execute("exiftool -overwrite_original -tagsfromfile "..f.." "..output_fn)
 
-  rm_cmd = "rm "..tmp_prefix..'*'
-  execute(rm_cmd)
+  if not keepIntermediateFiles() then
+    rm_cmd = "rm "..tmp_prefix..'*'
+    execute(rm_cmd)
+  end
   
   if not keepIntermediateFiles() then
     rm_cmd = append_filelist("rm ", fn_list)
@@ -292,31 +302,33 @@ local function generateHDRFromSingleImg(img)
 end
 
 dt.preferences.register("generateHDR", 
-			"hdr_prefix",
-			"string",
-			"HDR postfix",
-			"Postfix of HDR images generated from groups",
-			"hdr_")
+						"hdr_postfix",
+						"string",
+						"HDR postfix",
+						"Postfix of HDR images generated from groups",
+						"hdr")
 
 dt.preferences.register("group_sequences_in_selection",
-			"max_diff",
-			"integer",
-			"Max difference in image sequences",
-			"Max time difference to consider subsequent images as part of the same sequence ",
-			7,
-			1,
-			100)
+						"max_diff",
+						"integer",
+						"Max difference in image sequences",
+						"Max time difference to consider subsequent images as part of the same sequence ",
+						7,
+						1,
+						100)
+						
+dt.preferences.register("genHDR",
+						"keep_intermediate_file",
+						"bool",
+						"Keep the exported intermediate files",
+						"Does not delete the exported files in ~/.local/tmp if checked",
+						false)
 
 dt.register_event("shortcut",
                   group_sequences_in_selection_callback,
                   "group HDR sequences in selection")
 
-dt.preferences.register("genHDR",
-			"keep_intermediate_file",
-			"bool",
-			"Keep the exported intermediate files",
-			"Does not delete the exported files in ~/.local/tmp if checked",
-			false)
+
 
 dt.register_storage("Generate HDR",
 		            "generate HDR",
