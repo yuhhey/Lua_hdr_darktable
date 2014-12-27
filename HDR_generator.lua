@@ -113,7 +113,7 @@ local function buildHDRPrefix(fn_list, target_path)
     hdr_prefix = hdr_prefix..fn.sub(fn, string.find(fn, '%d%d%d%d'))..'_'
   end
   hdr_postfix = dt.preferences.read("generateHDR", 
-									"hdr_postfix",
+			"hdr_postfix",
 									"string")
   return target_path..'/'..hdr_prefix..hdr_postfix
 end
@@ -268,6 +268,20 @@ end
 
 local function isGroupLeader(img)
   return img == img.group_leader
+end
+
+
+local function generateMakefile(img_list)
+
+  writeRules()
+  writeVariables()
+
+  for image in img_list do
+    if image.is_raw and isGroupLeader(image) then
+      imgs = image.get_group_members(image)
+      writeDependency(imgs)
+    end
+  end
 end
 
 local function export_hdr_finalize_callback(storage, exported_img_list)
